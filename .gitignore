@@ -1,0 +1,30 @@
+# Virtual environment (never commit this)
+recipe_env/
+venv/
+.venv/
+env/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Local database (optional: remove this line if you want to track recipes.db)
+recipes.db
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+nul
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
