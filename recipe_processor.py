@@ -13,6 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 import anthropic
 import PyPDF2
+from docx import Document as DocxDocument
 import os
 import base64
 from PIL import Image
@@ -118,6 +119,27 @@ class RecipeProcessor:
                 }
         except Exception as e:
             print(f"Error reading PDF {pdf_path}: {e}")
+            return None
+    
+    def extract_docx_text(self, docx_path: str) -> Optional[Dict]:
+        """Extract text from a Word (.docx) file"""
+        try:
+            doc = DocxDocument(docx_path)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            text = "\n".join(paragraphs)
+            # Also extract text from tables (recipes sometimes use tables)
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                    if row_text:
+                        text += "\n" + row_text
+            return {
+                'source_type': 'docx',
+                'source_url': docx_path,
+                'raw_content': text[:5000] if text else ""
+            }
+        except Exception as e:
+            print(f"Error reading Word doc {docx_path}: {e}")
             return None
     
     def process_image(self, image_path: str) -> Dict:
@@ -301,6 +323,24 @@ Return ONLY the JSON object, no other text."""
             recipe_data = self.classify_with_ai(raw_content=source_info['raw_content'])
             if recipe_data:
                 self.save_recipe(recipe_data, source_info)
+    
+    def process_docx(self, docx_path: str):
+        """Process a single Word (.docx) file"""
+        print(f"\nProcessing Word doc: {docx_path}")
+        source_info = self.extract_docx_text(docx_path)
+        if source_info and source_info.get('raw_content'):
+            recipe_data = self.classify_with_ai(raw_content=source_info['raw_content'])
+            if recipe_data:
+                self.save_recipe(recipe_data, source_info)
+        elif source_info and not source_info.get('raw_content'):
+            print(f"  (No text found in {docx_path}; skipping)")
+    
+    def process_docx_from_folder(self, folder_path: str):
+        """Process all Word (.docx) files in a folder"""
+        docx_files = list(Path(folder_path).glob("*.docx"))
+        print(f"Found {len(docx_files)} Word (.docx) files to process")
+        for docx_file in docx_files:
+            self.process_docx(str(docx_file))
     
     def process_image_file(self, image_path: str):
         """Process a single image file (photo or scanned recipe)"""

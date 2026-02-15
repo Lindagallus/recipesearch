@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Search results — Recipe Search{% endblock %}
+{% block content %}
+  <form action="/search" method="post" class="card" style="margin-bottom: 1.5rem;">
+    <input
+      type="text"
+      name="ingredients"
+      placeholder="e.g. chicken, rice noodles"
+      value="{{ query_string }}"
+      style="width: 100%; padding: 0.6rem 1rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit;"
+    >
+    <button type="submit" style="margin-top: 0.75rem; padding: 0.5rem 1rem; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-family: inherit;">Search again</button>
+  </form>
+
+  {% if ingredients %}
+    <p class="muted">Recipes containing: {{ ingredients | join(", ") }}</p>
+  {% endif %}
+
+  {% if not results and ingredients %}
+    <div class="card">
+      <p>No recipes found that use all of those ingredients. Try fewer or different ingredients.</p>
+    </div>
+  {% elif results %}
+    <p class="muted" style="margin-bottom: 0.5rem;">{{ results | length }} recipe(s) found</p>
+    {% for r in results %}
+      <div class="card">
+        <h2 class="title" style="font-size: 1.35rem;">{{ r.title }}</h2>
+        <div class="meta">
+          {% if r.cuisine %}<span>🍳 {{ r.cuisine }}</span>{% endif %}
+          {% if r.protein_type %}<span>🥩 {{ r.protein_type }}</span>{% endif %}
+          {% if r.cook_time %}<span>⏱️ {{ r.cook_time }}</span>{% endif %}
+          {% if r.servings %}<span>👥 {{ r.servings }}</span>{% endif %}
+        </div>
+        {% if r.source_url %}<p class="muted" style="margin: 0 0 0.5rem 0;">Source: {{ r.source_url }}</p>{% endif %}
+        <p style="margin: 0.5rem 0 0 0; font-weight: 600;">Ingredients</p>
+        <ul class="ingredients">
+          {% for ing in r.ingredients %}
+            <li>{{ ing.name }}{% if ing.quantity %} — {{ ing.quantity }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Recipe Search{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf8f5;
+      --card: #fff;
+      --ink: #2c2825;
+      --muted: #6b6560;
+      --accent: #c45c3e;
+      --accent-soft: #e8b4a8;
+      --border: #e5e0d9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 17px;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    h1, .title {
+      font-family: 'DM Serif Display', serif;
+      font-weight: 400;
+      color: var(--ink);
+      margin: 0 0 0.5rem 0;
+    }
+    h1 { font-size: 2rem; }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .meta { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.5rem 0 0.75rem 0; color: var(--muted); font-size: 0.9rem; }
+    .ingredients { margin: 0; padding-left: 1.25rem; }
+    .ingredients li { margin: 0.2rem 0; }
+    {% block extra_css %}{% endblock %}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header style="margin-bottom: 2rem;">
+      <a href="/"><h1>Recipe Search</h1></a>
+      <p class="muted">Search by ingredients — PDF, Word, images, and more</p>
+    </header>
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

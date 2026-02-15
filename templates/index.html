@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Recipe Search — Find recipes by ingredients{% endblock %}
+{% block content %}
+  <form action="/search" method="post" class="card" style="padding: 1.75rem;">
+    <label for="ingredients" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Ingredients (comma-separated)</label>
+    <input
+      type="text"
+      id="ingredients"
+      name="ingredients"
+      placeholder="e.g. chicken, rice noodles, coconut milk"
+      value="{{ request.form.get('ingredients', '') }}"
+      style="width: 100%; padding: 0.75rem 1rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit;"
+      autofocus
+    >
+    <button
+      type="submit"
+      style="margin-top: 1rem; padding: 0.6rem 1.25rem; background: var(--accent); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit;"
+    >
+      Search
+    </button>
+  </form>
+  <p class="muted">
+    Add recipes with <code>python setup_recipes.py</code> — PDFs, Word (.docx), images, and HelloFresh URLs.
+  </p>
+{% endblock %}

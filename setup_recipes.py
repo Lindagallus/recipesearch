@@ -45,9 +45,11 @@ def setup_wizard():
     print("4. Process a single PDF file")
     print("5. Process image files from a folder (photos/scanned recipes)")
     print("6. Process a single image file")
-    print("7. Exit")
+    print("7. Process Word (.docx) files from a folder")
+    print("8. Process a single Word (.docx) file")
+    print("9. Exit")
     
-    choice = input("\nEnter choice (1-7): ").strip()
+    choice = input("\nEnter choice (1-9): ").strip()
     
     if choice == "1":
         file_path = input("\nEnter path to text file with URLs (one per line): ").strip()
@@ -95,6 +97,22 @@ def setup_wizard():
             print(f"❌ File not found: {image_path}")
     
     elif choice == "7":
+        folder_path = input("\nEnter path to folder containing Word (.docx) files: ").strip()
+        if Path(folder_path).exists():
+            processor.process_docx_from_folder(folder_path)
+            print("\n✅ Done! Use search_recipes.py or the web app to search your database.")
+        else:
+            print(f"❌ Folder not found: {folder_path}")
+    
+    elif choice == "8":
+        docx_path = input("\nEnter path to Word (.docx) file: ").strip()
+        if Path(docx_path).exists():
+            processor.process_docx(docx_path)
+            print("\n✅ Done! Use search_recipes.py or the web app to search your database.")
+        else:
+            print(f"❌ File not found: {docx_path}")
+    
+    elif choice == "9":
         print("\n👋 Goodbye!")
     
     else:
