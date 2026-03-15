@@ -22,6 +22,14 @@ def print_recipe(recipe, index):
         qty = ing['quantity'] if ing['quantity'] else ''
         print(f"   • {ing['name']} {qty}")
 
+    # Also show instructions so the recipe can actually be prepared
+    if recipe.get('instructions'):
+        print(f"\n📖 Instructions:")
+        for step in recipe['instructions']:
+            num = step.get('step') or ''
+            prefix = f"Step {num}: " if num else "- "
+            print(f"   {prefix}{step.get('text', '').strip()}")
+
 
 def search_interface():
     """Interactive search interface"""

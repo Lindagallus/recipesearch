@@ -7,8 +7,10 @@ This branch adds:
 
 ## Run the web app
 
-1. Install dependencies (including Flask and python-docx):
+1. Use a virtual environment (recommended), then install dependencies:
    ```bash
+   python3 -m venv venv
+   source venv/bin/activate   # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 2. Start the app:
@@ -16,5 +18,7 @@ This branch adds:
    python app.py
    ```
 3. Open **http://127.0.0.1:5000** in your browser.
+
+**Connection refused?** If you run the server in WSL and open the browser in Windows, try the *other* URL Flask prints (e.g. `http://172.24.229.218:5000`). Use that IP in your Windows browser.
 
 Use **Add recipes** with `python setup_recipes.py` (PDF, Word, images, HelloFresh URLs), then search via the web UI or `python search_recipes.py`.

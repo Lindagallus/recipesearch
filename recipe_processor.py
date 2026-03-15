@@ -14,8 +14,12 @@ from bs4 import BeautifulSoup
 import anthropic
 import PyPDF2
 from docx import Document as DocxDocument
+from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph as DocxParagraph
+from docx.table import Table as DocxTable
 import os
 import base64
+import zipfile
 from PIL import Image
 import io
 
@@ -121,22 +125,64 @@ class RecipeProcessor:
             print(f"Error reading PDF {pdf_path}: {e}")
             return None
     
+    def _iter_docx_blocks(self, doc):
+        """Yield paragraphs and tables in document order (so ingredients before instructions are preserved)."""
+        body = doc.element.body
+        for child in body.iterchildren():
+            if child.tag == qn('w:p'):
+                yield DocxParagraph(child, doc)
+            elif child.tag == qn('w:tbl'):
+                yield DocxTable(child, doc)
+
+    def _extract_docx_images(self, docx_path: str) -> List[Dict]:
+        """Extract embedded images from a Word (.docx) file. Returns list of {image_data: base64, image_format: media_type}."""
+        result = []
+        ext_to_media = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+        }
+        try:
+            with zipfile.ZipFile(docx_path, 'r') as z:
+                for name in z.namelist():
+                    if not name.startswith('word/media/'):
+                        continue
+                    ext = os.path.splitext(name)[1].lower()
+                    media_type = ext_to_media.get(ext, 'image/jpeg')
+                    data = z.read(name)
+                    if len(data) < 100:  # skip tiny/placeholder images
+                        continue
+                    result.append({
+                        'image_data': base64.standard_b64encode(data).decode('utf-8'),
+                        'image_format': media_type,
+                    })
+        except Exception as e:
+            print(f"Note: could not extract images from Word doc: {e}")
+        return result
+
     def extract_docx_text(self, docx_path: str) -> Optional[Dict]:
-        """Extract text from a Word (.docx) file"""
+        """Extract text and embedded images from a Word (.docx) file in document order."""
         try:
             doc = DocxDocument(docx_path)
-            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-            text = "\n".join(paragraphs)
-            # Also extract text from tables (recipes sometimes use tables)
-            for table in doc.tables:
-                for row in table.rows:
-                    row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
-                    if row_text:
-                        text += "\n" + row_text
+            parts = []
+            for block in self._iter_docx_blocks(doc):
+                if isinstance(block, DocxParagraph):
+                    if block.text.strip():
+                        parts.append(block.text.strip())
+                else:
+                    for row in block.rows:
+                        row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                        if row_text:
+                            parts.append(row_text)
+            text = "\n".join(parts)
+            images = self._extract_docx_images(docx_path)
             return {
                 'source_type': 'docx',
                 'source_url': docx_path,
-                'raw_content': text[:5000] if text else ""
+                'raw_content': text[:8000] if text else "",
+                'images': images,
             }
         except Exception as e:
             print(f"Error reading Word doc {docx_path}: {e}")
@@ -181,13 +227,12 @@ class RecipeProcessor:
             print(f"Error reading image {image_path}: {e}")
             return None
     
-    def classify_with_ai(self, raw_content: str = None, image_data: Dict = None) -> Optional[Dict]:
-        """Use Claude API to extract and classify recipe information from text or images"""
+    def classify_with_ai(self, raw_content: str = None, image_data: Dict = None, image_list: List[Dict] = None) -> Optional[Dict]:
+        """Use Claude API to extract and classify recipe information from text and/or images (e.g. Word doc with embedded image)."""
         if not self.client:
             print("Error: No API client available. Please set ANTHROPIC_API_KEY.")
             return None
         
-        # Build the prompt
         prompt_text = """Extract recipe information from this content and return it as a JSON object.
 
 Return a JSON object with this exact structure:
@@ -206,14 +251,43 @@ Return a JSON object with this exact structure:
   ]
 }
 
-Be thorough in extracting all ingredients, even if handwritten or unclear - do your best to read any text in the image.
+Be thorough in extracting ALL ingredients from the recipe. List every ingredient with its quantity if given.
+If the content includes both text and images (e.g. a Word doc with an inserted recipe photo), use BOTH: extract from the text and from any recipe image.
 If information is missing, use "unknown" or leave empty array.
 Return ONLY the JSON object, no other text."""
 
         try:
-            # Build message content
-            if image_data:
-                # Image-based request
+            # Build message content: text and/or images (single image, or text + embedded docx images)
+            if image_list:
+                # Word doc with embedded images: send text (if any) then all images, then prompt
+                message_content = []
+                if raw_content:
+                    message_content.append({
+                        "type": "text",
+                        "text": f"""Recipe content from document (text below; images follow):
+
+{raw_content}
+
+---
+Images from the same document follow. Use the text above and the images to extract the full recipe."""
+                    })
+                else:
+                    message_content.append({
+                        "type": "text",
+                        "text": "The following image(s) were extracted from a Word document. Extract the recipe from the image(s)."
+                    })
+                for img in image_list:
+                    message_content.append({
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": img['image_format'],
+                            "data": img['image_data']
+                        }
+                    })
+                message_content.append({"type": "text", "text": prompt_text})
+            elif image_data:
+                # Single standalone image (no image_list)
                 message_content = [
                     {
                         "type": "image",
@@ -223,15 +297,12 @@ Return ONLY the JSON object, no other text."""
                             "data": image_data['image_data']
                         }
                     },
-                    {
-                        "type": "text",
-                        "text": prompt_text
-                    }
+                    {"type": "text", "text": prompt_text}
                 ]
             else:
-                # Text-based request
+                # Text only
                 message_content = f"""Recipe text:
-{raw_content}
+{raw_content or '(no text)'}
 
 {prompt_text}"""
             
@@ -278,17 +349,25 @@ Return ONLY the JSON object, no other text."""
             
             recipe_id = cursor.lastrowid
             
-            # Insert ingredients
-            for ing in recipe_data.get('ingredients', []):
+            # Insert ingredients (normalize: AI may return list of dicts or list of strings)
+            raw_ingredients = recipe_data.get('ingredients', [])
+            if isinstance(raw_ingredients, str):
+                raw_ingredients = [s.strip() for s in raw_ingredients.replace(',', '\n').splitlines() if s.strip()]
+            for ing in raw_ingredients:
+                if isinstance(ing, dict):
+                    name = (ing.get('name') or '').strip()
+                    quantity = (ing.get('quantity') or '').strip()
+                    category = ing.get('category') or 'other'
+                else:
+                    name = str(ing).strip()
+                    quantity = ''
+                    category = 'other'
+                if not name:
+                    continue
                 cursor.execute('''
                     INSERT INTO ingredients (recipe_id, ingredient_name, quantity, category)
                     VALUES (?, ?, ?, ?)
-                ''', (
-                    recipe_id,
-                    ing.get('name', ''),
-                    ing.get('quantity', ''),
-                    ing.get('category', 'other')
-                ))
+                ''', (recipe_id, name, quantity, category))
             
             # Insert instructions
             for idx, instruction in enumerate(recipe_data.get('instructions', []), 1):
@@ -325,15 +404,22 @@ Return ONLY the JSON object, no other text."""
                 self.save_recipe(recipe_data, source_info)
     
     def process_docx(self, docx_path: str):
-        """Process a single Word (.docx) file"""
+        """Process a single Word (.docx) file (text and any embedded recipe images)."""
         print(f"\nProcessing Word doc: {docx_path}")
         source_info = self.extract_docx_text(docx_path)
-        if source_info and source_info.get('raw_content'):
-            recipe_data = self.classify_with_ai(raw_content=source_info['raw_content'])
-            if recipe_data:
-                self.save_recipe(recipe_data, source_info)
-        elif source_info and not source_info.get('raw_content'):
-            print(f"  (No text found in {docx_path}; skipping)")
+        if not source_info:
+            return
+        raw_content = source_info.get('raw_content') or ''
+        images = source_info.get('images') or []
+        if not raw_content and not images:
+            print(f"  (No text or images found in {docx_path}; skipping)")
+            return
+        recipe_data = self.classify_with_ai(
+            raw_content=raw_content if raw_content else None,
+            image_list=images if images else None,
+        )
+        if recipe_data:
+            self.save_recipe(recipe_data, source_info)
     
     def process_docx_from_folder(self, folder_path: str):
         """Process all Word (.docx) files in a folder"""
@@ -387,36 +473,35 @@ Return ONLY the JSON object, no other text."""
             self.process_image_file(str(image_file))
     
     def search_recipes(self, ingredients: List[str]) -> List[Dict]:
-        """Search for recipes containing specific ingredients"""
+        """Search for recipes where each term appears in ingredients, title, or full text.
+
+        Returned recipe dicts include:
+        - basic metadata (title, cook time, cuisine, etc.)
+        - full ingredient list
+        - full instructions list (step_number + text)
+        """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Build query to find recipes with ALL specified ingredients
-        placeholders = ','.join(['?' for _ in ingredients])
-        ingredient_patterns = [f'%{ing.lower()}%' for ing in ingredients]
-        
+        # Each term can match in ingredient name, recipe title, or full_text (so "kodiak" finds a recipe even if only in title)
+        term_clause = """(
+            LOWER(r.title) LIKE ? OR
+            LOWER(COALESCE(r.full_text, '')) LIKE ? OR
+            EXISTS (SELECT 1 FROM ingredients i WHERE i.recipe_id = r.id AND LOWER(i.ingredient_name) LIKE ?)
+        )"""
+        # For each search term we need 3 placeholders: title, full_text, ingredient
+        clauses = [term_clause for _ in ingredients]
         query = f'''
             SELECT DISTINCT r.id, r.title, r.cook_time, r.servings, r.cuisine, r.protein_type, r.source_url
             FROM recipes r
-            JOIN ingredients i ON r.id = i.recipe_id
-            WHERE LOWER(i.ingredient_name) LIKE ?
+            WHERE {' AND '.join(clauses)}
+            ORDER BY r.title
         '''
-        
-        # For multiple ingredients, we need to check each one
-        if len(ingredients) > 1:
-            query = f'''
-                SELECT r.id, r.title, r.cook_time, r.servings, r.cuisine, r.protein_type, r.source_url,
-                       COUNT(DISTINCT i.ingredient_name) as match_count
-                FROM recipes r
-                JOIN ingredients i ON r.id = i.recipe_id
-                WHERE {' OR '.join(['LOWER(i.ingredient_name) LIKE ?' for _ in ingredients])}
-                GROUP BY r.id
-                HAVING match_count = ?
-                ORDER BY r.title
-            '''
-            cursor.execute(query, ingredient_patterns + [len(ingredients)])
-        else:
-            cursor.execute(query, ingredient_patterns)
+        params = []
+        for ing in ingredients:
+            pattern = f'%{ing.lower()}%'
+            params.extend([pattern, pattern, pattern])
+        cursor.execute(query, params)
         
         results = []
         for row in cursor.fetchall():
@@ -427,15 +512,33 @@ Return ONLY the JSON object, no other text."""
                 'servings': row[3],
                 'cuisine': row[4],
                 'protein_type': row[5],
-                'source_url': row[6]
+                'source_url': row[6],
             }
             
             # Get all ingredients for this recipe
             cursor.execute('''
-                SELECT ingredient_name, quantity FROM ingredients WHERE recipe_id = ?
+                SELECT ingredient_name, quantity
+                FROM ingredients
+                WHERE recipe_id = ?
+                ORDER BY id
             ''', (recipe['id'],))
-            recipe['ingredients'] = [{'name': ing[0], 'quantity': ing[1]} for ing in cursor.fetchall()]
-            
+            recipe['ingredients'] = [
+                {'name': ing[0], 'quantity': ing[1]}
+                for ing in cursor.fetchall()
+            ]
+
+            # Get all instructions (ordered steps) for this recipe
+            cursor.execute('''
+                SELECT step_number, instruction
+                FROM instructions
+                WHERE recipe_id = ?
+                ORDER BY step_number
+            ''', (recipe['id'],))
+            recipe['instructions'] = [
+                {'step': row_i[0], 'text': row_i[1]}
+                for row_i in cursor.fetchall()
+            ]
+
             results.append(recipe)
         
         conn.close()
