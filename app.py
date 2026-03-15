@@ -12,7 +12,9 @@ from flask import Flask, render_template, request
 from recipe_processor import RecipeProcessor
 
 app = Flask(__name__)
-processor = RecipeProcessor()
+
+# Global processor used for read-only search (doesn't require API key)
+search_processor = RecipeProcessor()
 
 
 @app.route("/")
@@ -28,7 +30,7 @@ def search():
     ingredients = [x.strip() for x in ingredients_str.split(",") if x.strip()]
     results = []
     if ingredients:
-        results = processor.search_recipes(ingredients)
+        results = search_processor.search_recipes(ingredients)
     return render_template(
         "results.html",
         ingredients=ingredients,
@@ -53,14 +55,18 @@ def admin():
 
     if request.method == "POST":
         action = request.form.get("action") or ""
+        api_key = (request.form.get("api_key") or "").strip() or None
         path = (request.form.get("path") or "").strip()
+
+        # Use a dedicated processor for admin actions, so the user can supply an API key
+        admin_processor = RecipeProcessor(api_key=api_key)
 
         try:
             # URL-based options
             if action == "url_single":
                 if not path:
                     raise ValueError("Please enter a HelloFresh URL.")
-                processor.process_url(path)
+                admin_processor.process_url(path)
                 status = f"Processed single HelloFresh URL: {path}"
 
             elif action == "url_file":
@@ -68,7 +74,7 @@ def admin():
                     raise ValueError("Please enter a path to a text file with URLs.")
                 if not Path(path).exists():
                     raise ValueError(f"File not found: {path}")
-                processor.process_urls_from_file(path)
+                admin_processor.process_urls_from_file(path)
                 status = f"Processed URLs from file: {path}"
 
             # PDF options
@@ -77,7 +83,7 @@ def admin():
                     raise ValueError("Please enter a path to a PDF file.")
                 if not Path(path).exists():
                     raise ValueError(f"File not found: {path}")
-                processor.process_pdf(path)
+                admin_processor.process_pdf(path)
                 status = f"Processed PDF file: {path}"
 
             elif action == "pdf_folder":
@@ -85,7 +91,7 @@ def admin():
                     raise ValueError("Please enter a path to a folder with PDFs.")
                 if not Path(path).exists():
                     raise ValueError(f"Folder not found: {path}")
-                processor.process_pdfs_from_folder(path)
+                admin_processor.process_pdfs_from_folder(path)
                 status = f"Processed all PDFs in folder: {path}"
 
             # Image options
@@ -94,7 +100,7 @@ def admin():
                     raise ValueError("Please enter a path to an image file.")
                 if not Path(path).exists():
                     raise ValueError(f"File not found: {path}")
-                processor.process_image_file(path)
+                admin_processor.process_image_file(path)
                 status = f"Processed image file: {path}"
 
             elif action == "image_folder":
@@ -102,7 +108,7 @@ def admin():
                     raise ValueError("Please enter a path to a folder with images.")
                 if not Path(path).exists():
                     raise ValueError(f"Folder not found: {path}")
-                processor.process_images_from_folder(path)
+                admin_processor.process_images_from_folder(path)
                 status = f"Processed all images in folder: {path}"
 
             # Word (.docx) options
@@ -111,7 +117,7 @@ def admin():
                     raise ValueError("Please enter a path to a Word (.docx) file.")
                 if not Path(path).exists():
                     raise ValueError(f"File not found: {path}")
-                processor.process_docx(path)
+                admin_processor.process_docx(path)
                 status = f"Processed Word file: {path}"
 
             elif action == "docx_folder":
@@ -119,7 +125,7 @@ def admin():
                     raise ValueError("Please enter a path to a folder with Word (.docx) files.")
                 if not Path(path).exists():
                     raise ValueError(f"Folder not found: {path}")
-                processor.process_docx_from_folder(path)
+                admin_processor.process_docx_from_folder(path)
                 status = f"Processed all Word (.docx) files in folder: {path}"
 
             else:

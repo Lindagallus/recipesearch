@@ -21,6 +21,17 @@
     {% endif %}
 
     <form method="post">
+      <label for="api_key" style="display: block; font-weight: 600; margin-bottom: 0.3rem;">Claude API key (used only for this request)</label>
+      <input
+        type="password"
+        id="api_key"
+        name="api_key"
+        value=""
+        placeholder="Paste your ANTHROPIC_API_KEY here"
+        style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; margin-bottom: 0.9rem;"
+        autocomplete="off"
+      >
+
       <label for="action" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">What would you like to do?</label>
       <select id="action" name="action" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; margin-bottom: 0.9rem;">
         <option value="">-- Choose an action --</option>
@@ -56,8 +67,8 @@
   </div>
 
   <p class="muted">
-    Note: This admin page is intended for local use only. Make sure your <code>ANTHROPIC_API_KEY</code> is set in the environment
-    before loading recipes that require AI extraction.
+    Note: This admin page is intended for local use only. The key you paste here is used to call Claude for this request
+    and is not stored in the database or in a file.
   </p>
 {% endblock %}
 
