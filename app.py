@@ -5,7 +5,10 @@ Flask web interface for searching your recipe database.
 Run: python app.py  then open http://127.0.0.1:5000
 """
 
+from pathlib import Path
+
 from flask import Flask, render_template, request
+
 from recipe_processor import RecipeProcessor
 
 app = Flask(__name__)
@@ -32,6 +35,100 @@ def search():
         results=results,
         query_string=ingredients_str,
     )
+
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    """
+    Simple admin page to run the same loading options as setup_recipes.py:
+    - Process HelloFresh URLs
+    - Process PDFs
+    - Process images
+    - Process Word (.docx) recipes
+
+    This is intended for local use only.
+    """
+    status = None
+    error = None
+
+    if request.method == "POST":
+        action = request.form.get("action") or ""
+        path = (request.form.get("path") or "").strip()
+
+        try:
+            # URL-based options
+            if action == "url_single":
+                if not path:
+                    raise ValueError("Please enter a HelloFresh URL.")
+                processor.process_url(path)
+                status = f"Processed single HelloFresh URL: {path}"
+
+            elif action == "url_file":
+                if not path:
+                    raise ValueError("Please enter a path to a text file with URLs.")
+                if not Path(path).exists():
+                    raise ValueError(f"File not found: {path}")
+                processor.process_urls_from_file(path)
+                status = f"Processed URLs from file: {path}"
+
+            # PDF options
+            elif action == "pdf_single":
+                if not path:
+                    raise ValueError("Please enter a path to a PDF file.")
+                if not Path(path).exists():
+                    raise ValueError(f"File not found: {path}")
+                processor.process_pdf(path)
+                status = f"Processed PDF file: {path}"
+
+            elif action == "pdf_folder":
+                if not path:
+                    raise ValueError("Please enter a path to a folder with PDFs.")
+                if not Path(path).exists():
+                    raise ValueError(f"Folder not found: {path}")
+                processor.process_pdfs_from_folder(path)
+                status = f"Processed all PDFs in folder: {path}"
+
+            # Image options
+            elif action == "image_single":
+                if not path:
+                    raise ValueError("Please enter a path to an image file.")
+                if not Path(path).exists():
+                    raise ValueError(f"File not found: {path}")
+                processor.process_image_file(path)
+                status = f"Processed image file: {path}"
+
+            elif action == "image_folder":
+                if not path:
+                    raise ValueError("Please enter a path to a folder with images.")
+                if not Path(path).exists():
+                    raise ValueError(f"Folder not found: {path}")
+                processor.process_images_from_folder(path)
+                status = f"Processed all images in folder: {path}"
+
+            # Word (.docx) options
+            elif action == "docx_single":
+                if not path:
+                    raise ValueError("Please enter a path to a Word (.docx) file.")
+                if not Path(path).exists():
+                    raise ValueError(f"File not found: {path}")
+                processor.process_docx(path)
+                status = f"Processed Word file: {path}"
+
+            elif action == "docx_folder":
+                if not path:
+                    raise ValueError("Please enter a path to a folder with Word (.docx) files.")
+                if not Path(path).exists():
+                    raise ValueError(f"Folder not found: {path}")
+                processor.process_docx_from_folder(path)
+                status = f"Processed all Word (.docx) files in folder: {path}"
+
+            else:
+                raise ValueError("Please choose an action.")
+
+        except Exception as exc:  # noqa: BLE001
+            error = str(exc)
+
+    return render_template("admin.html", status=status, error=error)
 
 
 if __name__ == "__main__":

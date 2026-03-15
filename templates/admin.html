@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Admin — Add recipes{% endblock %}
+{% block content %}
+  <div class="card">
+    <h2 class="title" style="font-size: 1.4rem; margin-bottom: 0.5rem;">Admin: Add recipes</h2>
+    <p class="muted" style="margin-bottom: 1rem;">
+      Run the same options as <code>python setup_recipes.py</code> from your browser.
+      Paths should be absolute (e.g. <code>/mnt/f/Claude/recipefiles/my_word_recipes</code>).
+    </p>
+
+    {% if error %}
+      <div style="border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; background: #fdf2f2; border: 1px solid #f5c2c2; color: #742a2a;">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    {% if status %}
+      <div style="border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; background: #edf7ed; border: 1px solid #b7dfb9; color: #22543d;">
+        {{ status }}
+      </div>
+    {% endif %}
+
+    <form method="post">
+      <label for="action" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">What would you like to do?</label>
+      <select id="action" name="action" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; margin-bottom: 0.9rem;">
+        <option value="">-- Choose an action --</option>
+        <option value="url_single">1. Process a single HelloFresh URL</option>
+        <option value="url_file">2. Process HelloFresh URLs from a text file</option>
+        <option value="pdf_folder">3. Process PDF files from a folder</option>
+        <option value="pdf_single">4. Process a single PDF file</option>
+        <option value="image_folder">5. Process image files from a folder</option>
+        <option value="image_single">6. Process a single image file</option>
+        <option value="docx_folder">7. Process Word (.docx) files from a folder</option>
+        <option value="docx_single">8. Process a single Word (.docx) file</option>
+      </select>
+
+      <label for="path" style="display: block; font-weight: 600; margin-bottom: 0.3rem;">Path or URL (if needed)</label>
+      <input
+        type="text"
+        id="path"
+        name="path"
+        value="{{ request.form.get('path', '') }}"
+        placeholder="For example: /mnt/f/Claude/recipefiles/my_word_recipes"
+        style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; margin-bottom: 0.75rem;"
+      >
+
+      <p class="muted" style="margin-bottom: 0.75rem;">
+        For single-file options, enter the full path to a file. For folder options, enter the folder path.
+        For HelloFresh URLs, enter the full URL.
+      </p>
+
+      <button type="submit" style="padding: 0.55rem 1.2rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; font-family: inherit;">
+        Run
+      </button>
+    </form>
+  </div>
+
+  <p class="muted">
+    Note: This admin page is intended for local use only. Make sure your <code>ANTHROPIC_API_KEY</code> is set in the environment
+    before loading recipes that require AI extraction.
+  </p>
+{% endblock %}
+
